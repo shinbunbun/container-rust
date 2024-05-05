@@ -4,6 +4,7 @@ use std::{env, fs::write, io::Error, path::Path};
 use alloc::ffi::CString;
 use nix::{
     libc::{getgid, getuid, CLONE_NEWUTS, SIGCHLD},
+    mount::{mount, MsFlags},
     sched::{clone, CloneFlags},
     sys::wait::waitpid,
     unistd::{execv, execve, sethostname},
@@ -67,6 +68,20 @@ fn init_container() {
             println!("Set hostname failed: {}", e);
         }
     }
+    match mount(
+        Some("proc"),
+        "/proc",
+        Some("proc"),
+        MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_NODEV,
+        None::<&str>,
+    ) {
+        Ok(_) => {
+            println!("Mount proc success");
+        }
+        Err(e) => {
+            println!("Mount proc failed: {}", e);
+        }
+    };
     let c = CString::new("/bin/sh").unwrap();
     let argv = [CString::new("/bin/sh").unwrap()];
     let envp: Vec<CString> = env::vars()
@@ -150,7 +165,9 @@ fn main() {
             let flags = CloneFlags::CLONE_NEWIPC
                 | CloneFlags::CLONE_NEWNET
                 | CloneFlags::CLONE_NEWUSER
-                | CloneFlags::CLONE_NEWUTS;
+                | CloneFlags::CLONE_NEWUTS
+                | CloneFlags::CLONE_NEWPID
+                | CloneFlags::CLONE_NEWNS;
             let pid = match unsafe { clone(cb, child_stack, flags, Some(SIGCHLD)) } {
                 Ok(pid) => pid,
                 Err(e) => {
