@@ -9,16 +9,16 @@ use std::{
 
 use alloc::ffi::CString;
 use nix::{
-    libc::{getgid, getuid, CLONE_NEWUTS, SIGCHLD},
-    mount::{mount, umount, umount2, MntFlags, MsFlags},
+    libc::{getgid, getuid, SIGCHLD},
+    mount::{mount, umount2, MntFlags, MsFlags},
     sched::{clone, CloneFlags},
     sys::wait::waitpid,
-    unistd::{chdir, chroot, execv, execve, pivot_root, sethostname},
+    unistd::{chdir, execv, execve, pivot_root, sethostname},
 };
 
 const HOME_DIR: &str = "/home/bunbun";
 
-fn child_fn() -> isize {
+/* fn child_fn() -> isize {
     println!("staet child process");
     let c = CString::new("/bin/sh").unwrap();
     let argv = [CString::new("").unwrap()];
@@ -31,7 +31,7 @@ fn child_fn() -> isize {
         }
     };
     0
-}
+} */
 
 fn write_id_mapping(
     container_id: u32,
