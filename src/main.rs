@@ -13,7 +13,7 @@ use nix::{
     mount::{mount, umount2, MntFlags, MsFlags},
     sched::{clone, CloneFlags},
     sys::wait::waitpid,
-    unistd::{chdir, execv, execve, pivot_root, sethostname},
+    unistd::{chdir, execve, pivot_root, sethostname},
 };
 
 const HOME_DIR: &str = "/home/bunbun";
@@ -50,24 +50,7 @@ fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()
     Ok(())
 }
 
-fn run() -> isize {
-    let c = CString::new("/proc/self/exe").unwrap();
-    let argv = [
-        CString::new("/proc/self/exe").unwrap(),
-        CString::new("init").unwrap(),
-    ];
-    match execv(&c, &argv) {
-        Ok(i) => {
-            println!("Success: {}", i);
-        }
-        Err(e) => {
-            println!("Error: {}", e);
-        }
-    };
-    0
-}
-
-fn init_container() {
+fn init_container() -> isize {
     match sethostname("container") {
         Ok(_) => {
             println!("Set hostname success");
@@ -187,6 +170,7 @@ fn init_container() {
             println!("Error: {}", e);
         }
     };
+    0
 }
 
 fn id_mapping(pid: &str) {
@@ -211,9 +195,14 @@ fn id_mapping(pid: &str) {
 fn main() {
     println!("Parent pid: {}", std::process::id());
 
-    /* let cb = Box::new(child_fn);
+    let cb = Box::new(init_container);
     let child_stack = &mut [0; 1024];
-    let flags = CloneFlags::CLONE_NEWIPC | CloneFlags::CLONE_NEWNET | CloneFlags::CLONE_NEWUSER;
+    let flags = CloneFlags::CLONE_NEWIPC
+        | CloneFlags::CLONE_NEWNET
+        | CloneFlags::CLONE_NEWUSER
+        | CloneFlags::CLONE_NEWUTS
+        | CloneFlags::CLONE_NEWPID
+        | CloneFlags::CLONE_NEWNS;
     let pid = match unsafe { clone(cb, child_stack, flags, Some(SIGCHLD)) } {
         Ok(pid) => pid,
         Err(e) => {
@@ -221,61 +210,11 @@ fn main() {
             return;
         }
     };
+    id_mapping(&pid.to_string());
     println!("Child pid: {}", pid);
-
-    let setgroups_file = &format!("/proc/{}/setgroups", pid);
-    if let Err(err) = write_file(setgroups_file, "deny") {
-        eprintln!("setgroups failed: {}", err)
-    }
-
-    let uid_map_file = &format!("/proc/{}/uid_map", pid);
-    let uid = unsafe { getuid() };
-    if let Err(err) = write_id_mapping(0, uid, 1, uid_map_file) {
-        eprintln!("UID mapping failed: {}", err)
-    }
-
-    let gid_map_file = &format!("/proc/{}/gid_map", pid);
-    let gid = unsafe { getgid() };
-    if let Err(err) = write_id_mapping(0, gid, 1, gid_map_file) {
-        eprintln!("GID mapping failed: {}", err)
-    }
-
     while let Ok(states) = waitpid(pid, None) {
         println!("Exit status: {:?}", states);
     }
-    println!("Parent process exit") */
 
-    let args = env::args().collect::<Vec<String>>();
-    let arg1 = &args[1];
-    println!("arg1: {}", arg1);
-
-    match arg1.as_str() {
-        "run" => {
-            let cb = Box::new(run);
-            let child_stack = &mut [0; 1024];
-            let flags = CloneFlags::CLONE_NEWIPC
-                | CloneFlags::CLONE_NEWNET
-                | CloneFlags::CLONE_NEWUSER
-                | CloneFlags::CLONE_NEWUTS
-                | CloneFlags::CLONE_NEWPID
-                | CloneFlags::CLONE_NEWNS;
-            let pid = match unsafe { clone(cb, child_stack, flags, Some(SIGCHLD)) } {
-                Ok(pid) => pid,
-                Err(e) => {
-                    println!("Error: {}", e);
-                    return;
-                }
-            };
-            id_mapping(&pid.to_string());
-            println!("Child pid: {}", pid);
-            while let Ok(states) = waitpid(pid, None) {
-                println!("Exit status: {:?}", states);
-            }
-        }
-        "init" => {
-            init_container();
-        }
-        _ => {}
-    }
     println!("Parent process exit")
 }
